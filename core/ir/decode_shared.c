@@ -239,8 +239,12 @@ dr_set_isa_mode(void *drcontext, dr_isa_mode_t new_mode,
     dcontext_t *dcontext = (dcontext_t *)drcontext;
     dr_isa_mode_t old_mode;
     /* We would disallow but some early init routines need to use global heap */
-    if (dcontext == GLOBAL_DCONTEXT)
+    if (dcontext == GLOBAL_DCONTEXT) {
         dcontext = get_thread_private_dcontext();
+    }
+    if (dcontext == NULL) {
+        dcontext = GLOBAL_DCONTEXT;
+    }
     /* Support GLOBAL_DCONTEXT or NULL for standalone/static modes */
     if (dcontext == NULL || dcontext == GLOBAL_DCONTEXT) {
 #if !defined(STANDALONE_DECODER)
@@ -270,10 +274,14 @@ dr_get_isa_mode(void *drcontext)
     dcontext_t *dcontext = (dcontext_t *)drcontext;
 #if !defined(STANDALONE_DECODER) && defined(DEBUG)
     dcontext_t *orig_dcontext = dcontext;
+    if (orig_dcontext == NULL) {
+        orig_dcontext = GLOBAL_DCONTEXT;
+    }
 #endif
     /* We would disallow but some early init routines need to use global heap */
-    if (dcontext == GLOBAL_DCONTEXT)
+    if (dcontext == GLOBAL_DCONTEXT) {
         dcontext = get_thread_private_dcontext();
+    }
     /* Support GLOBAL_DCONTEXT or NULL for standalone/static modes */
     if (dcontext == NULL || dcontext == GLOBAL_DCONTEXT) {
 #if !defined(STANDALONE_DECODER)
