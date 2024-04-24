@@ -739,6 +739,29 @@ privload_os_finalize(privmod_t *privmod)
     os_privmod_data_t *ld_opd = (os_privmod_data_t *)privmod_ld_linux->os_privmod_data;
     byte *glro = get_proc_address_from_os_data(&ld_opd->os_data, ld_opd->load_delta,
                                                "_rtld_global_ro", NULL);
+    byte *gl = get_proc_address_from_os_data(&ld_opd->os_data, ld_opd->load_delta,
+                                             "_rtld_global", NULL);
+    SYSLOG_INTERNAL_WARNING("_rtld_global %p", gl);
+    SYSLOG_INTERNAL_WARNING("_rtld_global_ro %p", glro);
+
+    int GL_dl_stack_cache_next_OFFS = 4312;
+    int GL_dl_stack_used_next_OFFS = 4280;
+    int GL_dl_stack_user_next_OFFS = 4296;
+    int GL_dl_lists_OFFS[3] = { GL_dl_stack_cache_next_OFFS, GL_dl_stack_used_next_OFFS,
+                                GL_dl_stack_user_next_OFFS };
+    for (int i = 0; i < 3; i++) {
+        int GL_dl_list_next_OFFS = GL_dl_lists_OFFS[i];
+        int GL_dl_list_prev_OFFS = GL_dl_list_next_OFFS + sizeof(size_t);
+        size_t head = (size_t)gl + GL_dl_list_next_OFFS;
+        size_t next_written = 0;
+        size_t prev_written = 0;
+        safe_write_ex(gl + GL_dl_list_next_OFFS, sizeof(head), &head, &next_written);
+        safe_write_ex(gl + GL_dl_list_prev_OFFS, sizeof(head), &head, &prev_written);
+        if (next_written != sizeof(head) || prev_written != sizeof(head)) {
+            SYSLOG_INTERNAL_WARNING("GL lists init failed");
+        }
+    }
+
     if (glro == NULL) {
         SYSLOG_INTERNAL_WARNING("glibc 2.34+ i#5437 workaround failed: missed glro");
         return;
@@ -751,8 +774,8 @@ privload_os_finalize(privmod_t *privmod)
         GLRO_dl_tls_static_size_OFFS = 0x2a8;
         GLRO_dl_tls_static_align_OFFS = 0x2b0;
     } else {
-        GLRO_dl_tls_static_size_OFFS = 0x2c8;
-        GLRO_dl_tls_static_align_OFFS = 0x2d0;
+        GLRO_dl_tls_static_size_OFFS = 0x2d8;
+        GLRO_dl_tls_static_align_OFFS = 0x2e0;
     }
 #    else
     // The offsets changed between 2.35 and 2.36.
@@ -1530,7 +1553,17 @@ redirect___gnu_Unwind_Find_exidx(void *pc, int *count)
     return ucd.base;
 }
 #    endif /* ARM && !ANDROID */
-#endif     /* LINUX */
+
+typedef void (*dtor_func)(void *);
+
+int
+redirect__cxa_thread_atexit_impl(dtor_func func, void *obj, void *dso_symbol)
+{
+	// no dtor is run
+	return 0;
+}
+
+#endif /* LINUX */
 
 typedef struct _redirect_import_t {
     const char *name;
@@ -1593,6 +1626,8 @@ static const redirect_import_t redirect_imports[] = {
     { "memset_chk", (app_pc)memset },
     { "memmove_chk", (app_pc)memmove },
     { "strncpy_chk", (app_pc)strncpy },
+    /* rust tls dtor hack */
+    { "__cxa_thread_atexit_impl", (app_pc)redirect__cxa_thread_atexit_impl },
 };
 #define REDIRECT_IMPORTS_NUM (sizeof(redirect_imports) / sizeof(redirect_imports[0]))
 
