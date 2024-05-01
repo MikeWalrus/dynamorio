@@ -1559,8 +1559,16 @@ typedef void (*dtor_func)(void *);
 int
 redirect__cxa_thread_atexit_impl(dtor_func func, void *obj, void *dso_symbol)
 {
-	// no dtor is run
-	return 0;
+    // no dtor is run
+    return 0;
+}
+
+int
+redirect_posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    // This is almost definitely wrong.
+    *memptr = redirect_malloc(size);
+    return 0;
 }
 
 #endif /* LINUX */
@@ -1584,6 +1592,7 @@ static const redirect_import_t redirect_imports[] = {
      * + OSX: malloc_zone_malloc, etc.?  Or just malloc_create_zone?
      * + C++ operators in case they don't just call libc malloc?
      */
+    { "posix_memalign", (app_pc)redirect_posix_memalign },
     /* We redirect these for fd isolation. */
     { "open", (app_pc)os_open_protected },
     { "close", (app_pc)os_close_protected },

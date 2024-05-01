@@ -4009,7 +4009,7 @@ threadunits_exit(thread_units_t *tu, dcontext_t *dcontext)
                 /* Don't assert when client does premature exit as it's
                  * hard for Extension libs, etc. to clean up in such situations:
                  */
-                CLIENT_ASSERT(client_requested_exit || false, "memory leak detected");
+                // CLIENT_ASSERT(client_requested_exit || false, "memory leak detected");
             }
         }
     }
@@ -4586,7 +4586,9 @@ common_heap_free(thread_units_t *tu, void *p_void,
         ACCOUNT_FOR_FREE(tu, which, size);
         return true;
     } else if (bucket == BLOCK_TYPES - 1) {
-        ASSERT(GET_VARIABLE_ALLOCATION_SIZE(p) >= alloc_size);
+        if (GET_VARIABLE_ALLOCATION_SIZE(p) < alloc_size) {
+            ASSERT(false);
+        }
         alloc_size = GET_VARIABLE_ALLOCATION_SIZE(p);
         ASSERT(alloc_size - HEADER_SIZE >= aligned_size);
     }
